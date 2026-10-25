@@ -1,33 +1,69 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { getTopologyAnalysis } from "./api.js";
+import { events, countByStatus } from "./data.js";
 import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
 import SummaryCards from "./components/SummaryCards.jsx";
 import ServiceGraph from "./components/ServiceGraph.jsx";
 import RootCausePanel from "./components/RootCausePanel.jsx";
 import EventLog from "./components/EventLog.jsx";
-import { services, dependencies, analysis, events, countByStatus } from "./data.js";
 
 export default function App() {
-  const [running, setRunning] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  
-  function handleRun() {
-    if (running) return;
-    setRunning(true);
-    setTimeout(() => setRunning(false), 1200);
-  }
+  const runAnalysis = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await getTopologyAnalysis();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not connect to the API.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    runAnalysis();
+  }, [runAnalysis]);
+
+  const counts = data ? countByStatus(data.services) : null;
 
   return (
     <div className="app">
       <Sidebar active="Service Topology" />
       <main className="main">
-        <Header running={running} onRun={handleRun} />
-        <SummaryCards counts={countByStatus(services)} />
-        <section className="row">
-          <ServiceGraph services={services} dependencies={dependencies} />
-          <RootCausePanel analysis={analysis} />
-        </section>
-        <EventLog events={events} />
+        <Header running={loading} onRun={runAnalysis} />
+        <div className="source-note">Rule-based demo · Simulated service data · No live production monitoring</div>
+        {error && (
+          <div className="error-banner" role="alert">
+            <span>{error}</span>
+            <button type="button" onClick={runAnalysis} disabled={loading}>Retry</button>
+          </div>
+        )}
+        {data && counts ? (
+          <>
+            <SummaryCards counts={counts} />
+            <section className="row">
+              <div>
+                <div className="section-heading">
+                  <div><h2>Service Dependency Map</h2><p>Trace the services that may be affected by a failure.</p></div>
+                  <span className="sim-tag">API connected</span>
+                </div>
+                <ServiceGraph services={data.services} dependencies={data.edges} />
+              </div>
+              <RootCausePanel analysis={data.analysis} />
+            </section>
+            <EventLog events={events} />
+          </>
+        ) : (
+          <div className="loading-state" role="status">
+            {loading ? "Connecting to the CascadeGuard API…" : "No analysis data available. Check the backend and retry."}
+          </div>
+        )}
       </main>
     </div>
   );

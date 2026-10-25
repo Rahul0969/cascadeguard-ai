@@ -1,78 +1,74 @@
 """Rule-based failure impact analysis over the simulated dependency graph."""
 from collections import deque
+from copy import deepcopy
+
 from .data import DEPENDENCIES, SERVICES
 
 RECOVERY_ACTIONS = {
     "payment-service": (
-        "Inspect payment-service health and logs, restore availability, "
+        "Inspect Payment Service health checks and logs, restore availability, "
         "then safely retry dependent requests."
     ),
-    "database": "Check database connectivity, capacity, and recent errors.",
+    "database": "Check database connectivity, capacity, connection-pool usage, and recent errors.",
 }
 
 
 def analyze_topology():
-    """Return service status, root cause, downstream impact, and recommendation."""
-    failed = [service for service in SERVICES if service["status"] == "failed"]
-    if not failed:
-        return {
-            "services": SERVICES,
-            "dependencies": DEPENDENCIES,
-            "analysis": {
-                "status": "no-failure-detected",
-                "root_cause": None,
-                "severity": "LOW",
-                "affected_services": [],
-                "explanation": "No failed services are present in the demo dataset.",
-                "recommended_action": "Continue monitoring service health.",
-            },
-        }
+    """Return fresh service data, the graph, and an explainable failure analysis."""
+    services = deepcopy(SERVICES)
+    failed = [service for service in services if service["status"] == "failed"]
 
-    # Reverse dependency edges so a failed dependency can be traced to its dependents.
+    # source depends on target, so reverse each edge to find dependents of a failure.
     dependents = {}
     for edge in DEPENDENCIES:
         dependents.setdefault(edge["target"], []).append(edge["source"])
 
     affected_ids = set()
-    queue = deque([service["id"] for service in failed])
+    queue = deque(service["id"] for service in failed)
     visited = set(queue)
-
     while queue:
-        failed_or_affected = queue.popleft()
-        for dependent_id in dependents.get(failed_or_affected, []):
+        current = queue.popleft()
+        for dependent_id in dependents.get(current, []):
             if dependent_id not in visited:
                 visited.add(dependent_id)
                 affected_ids.add(dependent_id)
                 queue.append(dependent_id)
 
-    service_by_id = {service["id"]: service for service in SERVICES}
+    for service in services:
+        if service["id"] in affected_ids and service["status"] != "failed":
+            service["status"] = "at-risk"
+
+    by_id = {service["id"]: service for service in services}
     affected = [
-        {"id": service_id, "name": service_by_id[service_id]["name"]}
+        {"id": service_id, "name": by_id[service_id]["name"]}
         for service_id in sorted(affected_ids)
     ]
 
-    primary = failed[0]
-    severity = "HIGH" if affected else "MEDIUM"
-    return {
-        "services": SERVICES,
-        "dependencies": DEPENDENCIES,
-        "analysis": {
+    if not failed:
+        analysis = {
+            "status": "no-failure-detected",
+            "root_cause": None,
+            "severity": "LOW",
+            "affected_services": [],
+            "explanation": "No failed services are present in the simulated dataset.",
+            "recommended_action": "Continue monitoring service health.",
+        }
+    else:
+        primary = failed[0]
+        analysis = {
             "status": "analysis-complete",
-            "root_cause": {
-                "id": primary["id"],
-                "name": primary["name"],
-                "status": primary["status"],
-            },
-            "severity": severity,
+            "root_cause": {"id": primary["id"], "name": primary["name"], "status": "failed"},
+            "severity": "HIGH" if affected else "MEDIUM",
             "affected_services": affected,
             "explanation": (
-                f'{primary["name"]} is marked failed in the simulated dataset. '
-                "The listed affected services depend on it directly or through "
-                "the configured dependency graph."
+                f"{primary['name']} is marked failed in the simulated dataset. "
+                "Affected services are traced through the configured dependency graph; "
+                "this is a rule-based estimate, not live production telemetry."
             ),
             "recommended_action": RECOVERY_ACTIONS.get(
                 primary["id"],
-                f'Inspect {primary["name"]} health and logs, then restore availability.',
+                f"Inspect {primary['name']} health checks and logs, then restore availability.",
             ),
-        },
-    }
+        }
+
+    return {"services": services, "dependencies": deepcopy(DEPENDENCIES), "analysis": analysis}

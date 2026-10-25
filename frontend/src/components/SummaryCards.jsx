@@ -5,13 +5,7 @@ export default function SummaryCards({ counts }) {
     { key: "failed", label: "Failed Services", value: counts.failed, cls: "failed" },
     { key: "atRisk", label: "At-Risk Services", value: counts.atRisk, cls: "atrisk" },
   ];
-  return (
-    <section className="cards">
-      {cards.map((c) => (
-        <div key={c.key} className={"card " + c.cls}>
-          {c.label}: <strong>{c.value}</strong>
-        </div>
-      ))}
-    </section>
-  );
+  return <section className="cards" aria-label="Service status summary">{cards.map((card) => (
+    <div key={card.key} className={`card ${card.cls}`}><span>{card.label}</span><strong>{card.value}</strong></div>
+  ))}</section>;
 }
