@@ -1,4 +1,4 @@
-# CascadeGuard AI — Commit 1
+# CascadeGuard AI — Commit 2
 
 Initial backend foundation for the CascadeGuard AI hackathon prototype.
 
@@ -19,7 +19,7 @@ cascadeguard_commit1/
 │   │   ├── analysis.py
 │   │   └── data.py
 │   └── requirements.txt
-├── frontend/                 # Create React + Vite app in Commit 2
+├── frontend/                 # React + Vite dashboard (Commit 2)
 └── README.md
 ```
 
@@ -46,5 +46,18 @@ Open `/docs`, select `GET /api/topology`, click **Try it out**, then **Execute**
 
 The demo data intentionally simulates one failed service (`payment-service`) and downstream impact. This is a prototype using transparent rule-based graph analysis, not a trained ML model or live production monitoring.
 
+## Run the frontend (Windows / VS Code)
+Open a second terminal (the backend is optional in Commit 2):
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173 in your browser. Press `Ctrl + C` in the terminal to stop the server.
+
+The dashboard currently shows static demo data (`frontend/src/data.js`). `frontend/src/api.js` is ready for live API integration.
+
 ## Next commit
-Create the React + Vite frontend and build the dashboard to match the supplied Nano Banana design reference.
+Commit 3: connect the dashboard to `GET /api/topology` and test the failure analysis.
